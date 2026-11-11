@@ -7,6 +7,7 @@ import { html, raw, render, band, stepRows, whyFor, effortLine, sessionFx, fmtDa
 import { LEG_FEEL } from './content.js';
 import { exportAll, importAll, settings } from './db.js';
 import { cueSettings } from './cues.js';
+import { BUILD } from './version.js';
 import { toGPX } from './gpx.js';
 
 const go = (hash) => { location.hash = hash; };
@@ -423,6 +424,11 @@ export function settingsView(persisted) {
       <p class="small" style="margin:0"><b>Fueling:</b> ${RULES.fueling}</p>
       <p class="small" style="margin:0"><b>Shoes:</b> ${RULES.shoes}</p>
     </section>
+    <section class="card stack">
+      <h3>App version</h3>
+      <p class="small muted" style="margin:0">Build ${BUILD}. Pull down at the top of any page to load the newest version, or tap below.</p>
+      <div class="btns"><button class="btn" id="reload">Reload app</button></div>
+    </section>
     ${tabs('progress')}`;
 }
 
@@ -434,6 +440,7 @@ export function bindSettings(root, rerender) {
     await saveTimeTrial(sec);
     rerender();
   });
+  root.querySelector('#reload').addEventListener('click', () => location.reload());
   for (const k of ['voice', 'beeps']) root.querySelector('#' + k).addEventListener('change', (e) => { cueSettings[k] = e.target.checked; settings.set('cues', { ...cueSettings }); });
   root.querySelector('#export').addEventListener('click', async () => {
     const data = await exportAll();

@@ -31,13 +31,16 @@ export function installPullToRefresh({ enabled = () => true, onRefresh = () => l
     pull = 0;
   }, { passive: true });
 
+  // Not passive: once we own the pull we cancel it, so iOS's rubber-band bounce
+  // doesn't drag the whole page down instead of showing the indicator.
   addEventListener('touchmove', (e) => {
     if (startY == null) return;
     const dy = e.touches[0].clientY - startY;
     if (dy <= 0 || window.scrollY > 0) { if (pull) set(0); pull = 0; return; }
+    if (e.cancelable) e.preventDefault();
     pull = Math.min(MAX, dy * 0.5); // resistance
     set(pull);
-  }, { passive: true });
+  }, { passive: false });
 
   const end = () => {
     if (startY == null) return;
