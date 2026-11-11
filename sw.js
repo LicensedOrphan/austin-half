@@ -1,5 +1,5 @@
 // Offline support: the app shell is cached on install; map library and tiles cache as used.
-const VERSION = 'v2';
+const VERSION = 'v3';
 const SHELL = `shell-${VERSION}`;
 const RUNTIME = 'runtime';
 const FILES = [
@@ -9,6 +9,7 @@ const FILES = [
   'fonts/AtkinsonHyperlegible-400.woff2', 'fonts/AtkinsonHyperlegible-700.woff2',
   'fonts/BarlowCondensed-500.woff2', 'fonts/BarlowCondensed-600.woff2', 'fonts/BarlowCondensed-700.woff2',
   'img/icon.svg', 'img/icon-180.png',
+  'img/ex/calf_raise_1.webp', 'img/ex/calf_raise_2.webp', 'img/ex/calf_stretch.webp', 'img/ex/glute_bridge_1.webp', 'img/ex/glute_bridge_2.webp', 'img/ex/goblet_squat_1.webp', 'img/ex/goblet_squat_2.webp', 'img/ex/hamstring_stretch.webp', 'img/ex/hip_flexor_stretch.webp', 'img/ex/leg_swings_1.webp', 'img/ex/leg_swings_2.webp', 'img/ex/pigeon.webp', 'img/ex/plank.webp', 'img/ex/reverse_lunge_1.webp', 'img/ex/reverse_lunge_2.webp', 'img/ex/side_plank.webp', 'img/ex/sl_rdl_1.webp', 'img/ex/sl_rdl_2.webp', 'img/ex/step_up_1.webp', 'img/ex/step_up_2.webp',
 ];
 
 self.addEventListener('install', (e) => {
