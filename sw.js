@@ -1,11 +1,11 @@
 // Offline support: the app shell is cached on install; map library and tiles cache as used.
-const VERSION = 'v3';
+const VERSION = 'v4';
 const SHELL = `shell-${VERSION}`;
 const RUNTIME = 'runtime';
 const FILES = [
   './', 'index.html', 'manifest.webmanifest', 'css/app.css', 'css/fonts.css',
   'js/app.js', 'js/plan.js', 'js/paces.js', 'js/db.js', 'js/track.js', 'js/guide.js', 'js/cues.js',
-  'js/content.js', 'js/state.js', 'js/ui.js', 'js/views.js', 'js/run.js', 'js/player.js', 'js/gpx.js', 'js/map.js',
+  'js/content.js', 'js/state.js', 'js/ui.js', 'js/views.js', 'js/run.js', 'js/player.js', 'js/gpx.js', 'js/map.js', 'js/pull.js',
   'fonts/AtkinsonHyperlegible-400.woff2', 'fonts/AtkinsonHyperlegible-700.woff2',
   'fonts/BarlowCondensed-500.woff2', 'fonts/BarlowCondensed-600.woff2', 'fonts/BarlowCondensed-700.woff2',
   'img/icon.svg', 'img/icon-180.png',

@@ -8,6 +8,7 @@ import { dayView, bindDay, planView, progressView, runsView, runDetailView, bind
 import { runScreen } from './run.js';
 import { playerScreen } from './player.js';
 import { today, weekOf } from './plan.js';
+import { installPullToRefresh } from './pull.js';
 
 const root = document.getElementById('app');
 let persisted = false;
@@ -67,6 +68,8 @@ async function start() {
   document.addEventListener('visibilitychange', () => {
     if (!document.hidden && today() !== lastDay) { lastDay = today(); if (!location.hash.startsWith('#/run')) route(); }
   });
+  // Pull down at the top of a page to reload. Never during a run or the strength player.
+  installPullToRefresh({ enabled: () => !/^#\/(run|guide)(\/|$)/.test(location.hash) });
   route();
   if ('serviceWorker' in navigator && location.protocol === 'https:') navigator.serviceWorker.register('sw.js');
 }
