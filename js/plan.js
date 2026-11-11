@@ -154,12 +154,19 @@ export function today() {
 
 // ---- Expanded schedule ---------------------------------------------------
 
+// Which plan week runs in each calendar week. Restart on Nov 11, 2026 after ~2 weeks off:
+// week 3's slot repeats week 1, week 4's slot runs week 3 (time trial Nov 19), and the
+// break stands in for the week-4 cutback. Back on the original plan from week 5.
+export const WEEK_SOURCE = [1, 2, 1, 3, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16];
+export const RESTART = { date: '2026-11-11', note: 'Eased back in after two weeks off: repeated week 1, time trial moved to Nov 19, week-4 cutback dropped.' };
+
 function buildSchedule() {
   const days = [];
-  WEEKS.forEach((w, i) => {
+  WEEK_SOURCE.forEach((src, i) => {
+    const w = WEEKS[src - 1];
     const week = i + 1;
     const monday = addDays(PLAN_START, i * 7);
-    const lvl = strengthLevel(week);
+    const lvl = strengthLevel(src);
     const sat = typeof w.sat === 'number'
       ? { ...easyRun(w.sat), title: `${fmtMi(w.sat)} easy${lvl !== 'light' ? ' + strength' : ''}` }
       : w.sat;
@@ -174,7 +181,7 @@ function buildSchedule() {
     ];
     dayList.forEach((s, d) => {
       const date = addDays(monday, d);
-      const session = { ...s, date, week, dow: d, phase: w.phase };
+      const session = { ...s, date, week, dow: d, phase: w.phase, ...(src !== week ? { repeatOf: src } : {}) };
       if (session.steps && session.distance == null) session.distance = totalDistance(session.steps);
       // Saturday strength rides along with the easy run, except in the light weeks.
       if (d === 5 && lvl !== 'light' && session.type === 'easy' && week < 16) session.strength = lvl;
@@ -194,7 +201,7 @@ export function totalDistance(steps) {
 }
 
 export const SCHEDULE = buildSchedule();
-export const WEEK_TOTALS = WEEKS.map((w, i) => ({ week: i + 1, phase: w.phase, total: w.total, monday: addDays(PLAN_START, i * 7) }));
+export const WEEK_TOTALS = WEEK_SOURCE.map((src, i) => ({ week: i + 1, phase: WEEKS[src - 1].phase, total: WEEKS[src - 1].total, monday: addDays(PLAN_START, i * 7), repeatOf: src !== i + 1 ? src : null }));
 
 export function sessionFor(date) {
   return SCHEDULE.find((s) => s.date === date) || null;

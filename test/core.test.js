@@ -9,7 +9,10 @@ test('schedule covers 16 weeks ending on race day', () => {
   assert.equal(SCHEDULE.length, 112);
   assert.equal(SCHEDULE.at(-1).date, '2027-02-14');
   assert.equal(SCHEDULE.at(-1).type, 'race');
-  assert.equal(sessionFor('2026-11-12').timeTrial, true);
+  assert.equal(sessionFor('2026-11-12').timeTrial, undefined);
+  assert.equal(sessionFor('2026-11-19').timeTrial, true); // moved after the Nov 11 restart
+  assert.equal(sessionFor('2026-11-15').distance, 4);
+  assert.equal(sessionFor('2026-11-26').type, 'quality'); // back on plan for Thanksgiving tempo
   assert.equal(weekOf('2026-11-11'), 3);
 });
 

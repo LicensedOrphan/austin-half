@@ -1,8 +1,8 @@
 // Screens. Each view returns a template; app.js mounts it and calls bind() for events.
 
-import { SCHEDULE, WEEK_TOTALS, RACE, RULES, EFFORTS, today, addDays, weekOf, daysBetween, sessionFor, parseDate } from './plan.js';
+import { SCHEDULE, WEEK_TOTALS, RACE, RULES, EFFORTS, RESTART, today, addDays, weekOf, daysBetween, sessionFor, parseDate } from './plan.js';
 import { fmtPace, fmtDuration, parseDuration, HALF_METERS } from './paces.js';
-import { state, paces, saveLog, saveRun, saveTimeTrial, deleteRun, sessionOn, statusOf, movableTo, moveSession, undoMove, spikeWarning, weekMiles, runsOn, runById, isRun } from './state.js';
+import { state, paces, saveLog, saveRun, saveTimeTrial, deleteRun, sessionOn, statusOf, movableTo, moveSession, undoMove, spikeWarning, weekMiles, runsOn, runById, isRun, isRunActivity } from './state.js';
 import { html, raw, render, band, stepRows, whyFor, effortLine, sessionFx, fmtDay, dowName, fmtMiles, tabs, sheet, daysToRace, STATUS_LABEL, phaseName, paceText, esc } from './ui.js';
 import { LEG_FEEL } from './content.js';
 import { exportAll, importAll, settings } from './db.js';
@@ -21,7 +21,7 @@ export function dayView(date = today()) {
   const wk = weekOf(date);
   const log = state.logs.get(date);
   const st = log?.status;
-  const runs = runsOn(date);
+  const runs = runsOn(date, { all: true });
   const fx = sessionFx(s);
   const spike = !st && spikeWarning(s);
   const movable = isToday ? movableTo(date) : [];
@@ -50,6 +50,7 @@ export function dayView(date = today()) {
       ${s.movedFrom ? html`<p class="small muted">Moved from ${fmtDay(s.movedFrom)}. <button class="linkbtn" data-undomove="${date}">Undo</button></p>` : ''}
       ${s.movedAway ? html`<p class="small muted">Moved to ${fmtDay(s.movedAway)}.</p>` : ''}
       <p class="why">${whyFor(s)}</p>
+      ${s.repeatOf && !s.movedFrom ? html`<p class="small muted">${s.repeatOf < s.week ? `Repeating week ${s.repeatOf} to ease back in.` : `Week ${s.repeatOf}’s session, a week later than first planned.`}</p>` : ''}
       ${s.steps ? stepRows(s, p) : ''}
       ${effortLine(s)}
       ${s.note ? html`<p class="small">${s.note}</p>` : ''}
@@ -85,7 +86,7 @@ function actions(s, date, st, runs, isToday) {
   const btns = [];
   if (isRun(s) && !st) {
     btns.push(html`<a class="btn primary block" href="#/run/${date}">${future ? 'Start this run early' : 'Start run'}</a>`);
-    btns.push(html`<div class="btns" style="margin-top:10px"><a class="btn" href="#/guide/warmup/${date}">Leg swings</a><button class="btn" data-manual="${date}">Log without GPS</button></div>`);
+    btns.push(html`<div class="btns" style="margin-top:10px"><a class="btn" href="#/guide/warmup/${date}">Leg swings</a><button class="btn" data-manual="${date}">Log manually</button></div>`);
   } else if (s.type === 'strength' && !st) {
     btns.push(html`<a class="btn primary block" href="#/guide/strength/${date}">Start strength</a>`);
   } else if (s.type === 'mobility' && !st) {
@@ -101,6 +102,7 @@ function actions(s, date, st, runs, isToday) {
     if (s.type === 'strength') marks.push(html`<button class="linkbtn" data-mark="done">Mark done</button>`);
     if (s.type !== 'rest' && !future) marks.push(html`<button class="linkbtn" data-mark="skipped">Skip ${past ? 'it' : 'today'}</button>`);
   } else if (st && !s.movedAway) marks.push(html`<button class="linkbtn" data-mark="">Clear status</button>`);
+  if (!future && !(isRun(s) && !st)) marks.push(html`<button class="linkbtn" data-manual="${date}" data-kind-default="walk">Log a walk or ruck</button>`);
   return html`<div style="margin-top:6px">${btns}<div class="row" style="margin-top:8px;gap:18px">${marks}</div></div>`;
 }
 
@@ -113,6 +115,7 @@ function welcomeBack(date) {
   if (gap < 5) return null;
   const missedRuns = SCHEDULE.filter((s) => s.date > last && s.date < date && isRun(s) && !statusOf(s.date)).length;
   if (missedRuns < 2) return null;
+  if (date === RESTART.date || (date > RESTART.date && last < RESTART.date)) return 'This week repeats week 1 so your shins and calves can catch up. The time trial moved to Thu Nov 19. Keep every run easy.';
   return gap >= 9
     ? `It’s been ${gap} days since your last run. The plan’s rule: after a full missed week, repeat the previous week rather than jumping ahead. Start easy today.`
     : 'Pick up with today’s session. No need to make anything up.';
@@ -134,16 +137,19 @@ function pacesCard(p, wk) {
   </div></section>`;
 }
 
+const KIND = { run: 'Run', walk: 'Walk', ruck: 'Ruck' };
+
 function runRow(r) {
-  return html`<a href="#/runs/${r.id}"><span><b class="num" style="font-size:22px">${fmtMiles(r.miles)} mi</b> <span class="muted small">${fmtDay(r.date)}</span><br><span class="small muted">${r.title || ''}</span></span>
-    <span class="num" style="font-size:19px;text-align:right">${fmtDuration(r.seconds)}<br><span class="muted">${r.miles ? fmtPace(r.seconds / r.miles) + '/mi' : ''}</span></span></a>`;
+  const kind = r.kind || 'run';
+  return html`<a href="#/runs/${r.id}"><span><b class="num" style="font-size:22px">${fmtMiles(r.miles)} mi</b> <span class="muted small">${fmtDay(r.date)}${kind !== 'run' ? ` · ${KIND[kind]}` : ''}</span><br><span class="small muted">${r.title || ''}</span></span>
+    <span class="num" style="font-size:19px;text-align:right">${r.seconds ? fmtDuration(r.seconds) : ''}<br><span class="muted">${r.miles && r.seconds ? fmtPace(r.seconds / r.miles) + '/mi' : ''}</span></span></a>`;
 }
 
 export function bindDay(root, date, rerender) {
   root.querySelectorAll('[data-move]').forEach((b) => b.addEventListener('click', async () => { await moveSession(b.dataset.move, date); rerender(); }));
   root.querySelectorAll('[data-undomove]').forEach((b) => b.addEventListener('click', async () => { await undoMove(b.dataset.undomove); rerender(); }));
   root.querySelectorAll('[data-mark]').forEach((b) => b.addEventListener('click', async () => { await saveLog({ date, status: b.dataset.mark || null }); rerender(); }));
-  root.querySelectorAll('[data-manual]').forEach((b) => b.addEventListener('click', () => manualLog(date, rerender)));
+  root.querySelectorAll('[data-manual]').forEach((b) => b.addEventListener('click', () => manualLog(date, rerender, b.dataset.kindDefault)));
   root.querySelector('#tt-save')?.addEventListener('click', async () => {
     const sec = parseDuration(root.querySelector('#tt-time').value);
     if (sec && sec > 600 && sec < 3600) { await saveTimeTrial(sec, date); rerender(); }
@@ -186,28 +192,41 @@ export function checkIn(date, runId, onDone) {
   });
 }
 
-function manualLog(date, rerender) {
+function manualLog(date, rerender, initialKind = 'run') {
   const s = sessionOn(date);
-  sheet(html`<h2>Log a run</h2><p class="small muted">For runs recorded somewhere else, or without GPS.</p>
+  let kind = initialKind;
+  sheet(html`<h2>Log an activity</h2><p class="small muted">For runs recorded somewhere else or without GPS, and for walks and rucks. Walks and rucks don’t count toward running miles.</p>
+    <div class="chips" style="margin-top:12px">${Object.entries(KIND).map(([k, l]) => html`<button data-kind="${k}" aria-pressed="${k === initialKind}">${l}</button>`)}</div>
     <div class="row" style="margin-top:12px">
-      <label class="field" style="flex:1"><span>Miles</span><input type="number" step="0.01" inputmode="decimal" id="ml-mi" value="${s?.distance || ''}"></label>
+      <label class="field" style="flex:1"><span>Miles</span><input type="number" step="0.01" inputmode="decimal" id="ml-mi" value="${initialKind === 'run' ? s?.distance || '' : ''}"></label>
       <label class="field" style="flex:1"><span>Time (mm:ss)</span><input type="text" inputmode="numeric" id="ml-time" placeholder="31:20"></label>
     </div>
-    ${s?.timeTrial ? html`<label class="field" style="margin-top:12px"><span>5K time trial (mm:ss)</span><input type="text" inputmode="numeric" id="ml-tt" placeholder="27:45"></label>` : ''}
-    <p class="small" id="ml-err" style="color:var(--interval)" hidden>Enter miles and a time like 31:20.</p>
-    <button class="btn primary block" style="margin-top:16px" id="ml-save">Save and check in</button>`,
+    ${s?.timeTrial ? html`<label class="field" style="margin-top:12px" id="ml-tt-wrap" ${initialKind !== 'run' ? raw('hidden') : ''}><span>5K time trial (mm:ss)</span><input type="text" inputmode="numeric" id="ml-tt" placeholder="27:45"></label>` : ''}
+    <p class="small" id="ml-err" style="color:var(--interval)" hidden></p>
+    <button class="btn primary block" style="margin-top:16px" id="ml-save">Save</button>`,
   (el, close) => {
+    el.querySelectorAll('[data-kind]').forEach((b) => b.addEventListener('click', () => {
+      kind = b.dataset.kind;
+      el.querySelectorAll('[data-kind]').forEach((x) => x.setAttribute('aria-pressed', x === b));
+      if (kind !== 'run') el.querySelector('#ml-mi').value = '';
+      const tt = el.querySelector('#ml-tt-wrap');
+      if (tt) tt.hidden = kind !== 'run';
+    }));
     el.querySelector('#ml-save').addEventListener('click', async () => {
+      const err = el.querySelector('#ml-err');
       const miles = parseFloat(el.querySelector('#ml-mi').value);
-      const seconds = parseDuration(el.querySelector('#ml-time').value || '');
-      if (!(miles > 0) || !(seconds > 60)) { el.querySelector('#ml-err').hidden = false; return; }
-      const ttText = el.querySelector('#ml-tt')?.value;
+      const timeText = el.querySelector('#ml-time').value.trim();
+      const seconds = timeText ? parseDuration(timeText) : null;
+      if (!(miles > 0)) { err.textContent = 'Enter the distance in miles.'; err.hidden = false; return; }
+      if (kind === 'run' && !(seconds > 60)) { err.textContent = 'Enter a time like 31:20.'; err.hidden = false; return; }
+      const ttText = kind === 'run' ? el.querySelector('#ml-tt')?.value : null;
       const tt = ttText ? parseDuration(ttText) : null;
-      const run = { id: `m-${Date.now()}`, date, startedAt: parseDate(date).getTime() + 7 * 3600e3, manual: true, miles, seconds, title: s?.title, points: [], splits: [], timeTrialSeconds: tt || undefined };
+      const run = { id: `m-${Date.now()}`, kind, date, startedAt: parseDate(date).getTime() + 7 * 3600e3, manual: true, miles, seconds, title: kind === 'run' ? s?.title : KIND[kind], points: [], splits: [], timeTrialSeconds: tt || undefined };
       await saveRun(run);
       if (tt) await saveTimeTrial(tt, date);
       close();
-      checkIn(date, run.id, rerender);
+      if (kind === 'run') checkIn(date, run.id, rerender);
+      else rerender();
     });
   });
 }
@@ -223,7 +242,7 @@ export function planView() {
       const days = SCHEDULE.filter((s) => s.week === w.week);
       const done = weekMiles(w.week);
       return html`<div class="week ${w.week === cur ? 'now' : ''}" id="wk-${w.week}">
-        <header><b>Week ${w.week} · ${phaseName(w.phase)}</b><span class="small muted">${done ? fmtMiles(done) + ' of ' : ''}${w.total} mi</span></header>
+        <header><b>Week ${w.week} · ${w.repeatOf ? (w.repeatOf < w.week ? `repeats wk ${w.repeatOf}` : `wk ${w.repeatOf} plan`) : phaseName(w.phase)}</b><span class="small muted">${done ? fmtMiles(done) + ' of ' : ''}${w.total} mi</span></header>
         ${days.map((d0) => {
           const s = sessionOn(d0.date);
           const st = statusOf(d0.date);
@@ -242,7 +261,7 @@ export function progressView() {
   const t = today();
   const wk = weekOf(t) || (t > RACE.date ? 16 : 1);
   const plannedSoFar = WEEK_TOTALS.slice(0, wk).reduce((a, w) => a + w.total, 0);
-  const total = state.runs.reduce((a, r) => a + (r.miles || 0), 0);
+  const total = state.runs.filter(isRunActivity).reduce((a, r) => a + (r.miles || 0), 0);
   const left = WEEK_TOTALS.slice(wk).reduce((a, w) => a + w.total, 0);
   const runsDone = [...state.logs.values()].filter((l) => l.status === 'done' && isRun(sessionFor(l.date))).length;
   const late = wk >= 9;
@@ -290,7 +309,7 @@ function ladder() {
 }
 
 function easyTrend() {
-  const easy = state.runs.filter((r) => r.miles >= 1.5 && ['easy', 'long'].includes(sessionFor(r.date)?.type) && r.seconds).slice().reverse();
+  const easy = state.runs.filter((r) => isRunActivity(r) && r.miles >= 1.5 && ['easy', 'long'].includes(sessionFor(r.date)?.type) && r.seconds).slice().reverse();
   if (easy.length < 2) return html`<p class="small muted">Shows up after a couple of easy runs.</p>`;
   const W = 340, H = 130, pad = 34;
   const ps = easy.map((r) => r.seconds / r.miles);
@@ -307,7 +326,7 @@ function easyTrend() {
 // ---- Runs list and detail -----------------------------------------------
 
 export function runsView() {
-  return html`<header class="dayline"><h1>Runs</h1><div class="meta">${state.runs.length} logged<br>${fmtMiles(state.runs.reduce((a, r) => a + (r.miles || 0), 0))} mi total</div></header>
+  return html`<header class="dayline"><h1>Runs</h1><div class="meta">${state.runs.length} logged<br>${fmtMiles(state.runs.filter(isRunActivity).reduce((a, r) => a + (r.miles || 0), 0))} mi run</div></header>
     ${state.runs.length ? html`<div class="card runlist">${state.runs.map(runRow)}</div>` : html`<div class="card"><p>No runs yet. Start one from Today.</p></div>`}
     <section><a class="btn block" href="#/run/free">Start a free run</a></section>
     ${tabs('log')}`;
@@ -316,13 +335,13 @@ export function runsView() {
 export function runDetailView(id) {
   const r = runById(id);
   if (!r) return html`<p>Run not found. <a href="#/log">Back</a></p>${tabs('log')}`;
-  const pace = r.miles ? r.seconds / r.miles : null;
+  const pace = r.miles && r.seconds ? r.seconds / r.miles : null;
   const splits = r.splits || [];
-  return html`<header class="dayline"><div><div class="date">${fmtDay(r.date, true)}</div><a class="linkbtn" href="#/log">All runs</a></div><div class="meta">${r.title || ''}</div></header>
+  return html`<header class="dayline"><div><div class="date">${fmtDay(r.date, true)}</div><a class="linkbtn" href="#/log">All runs</a></div><div class="meta">${r.title || ''}${r.kind && r.kind !== 'run' ? html`<br>${KIND[r.kind]}, not counted as running miles` : ''}</div></header>
     ${r.points?.length > 1 ? html`<div class="map" id="map"></div>` : r.manual ? html`<p class="small muted">Logged by hand, no route.</p>` : ''}
     <div class="stat-row" style="margin-top:12px">
       <div class="stat"><b>${fmtMiles(r.miles)}</b><span>miles</span></div>
-      <div class="stat"><b>${fmtDuration(r.seconds)}</b><span>time</span></div>
+      <div class="stat"><b>${r.seconds ? fmtDuration(r.seconds) : '–'}</b><span>time</span></div>
       <div class="stat"><b>${pace ? fmtPace(pace) : '–'}</b><span>avg /mi</span></div>
     </div>
     <div class="stat-row" style="margin-top:10px">

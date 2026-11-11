@@ -39,8 +39,8 @@ export function sessionFx(s) {
   if (s.type === 'rest' || s.type === 'mobility') return 'rest';
   if (s.type === 'easy' || s.type === 'long') return 'easy';
   const efforts = flattenSteps(s.steps || []).map((x) => x.effort);
-  for (const e of ['race', 'interval', 'hill', 'tempo', 'hmp', 'stride']) if (efforts.includes(e)) return e === 'race' ? 'interval' : e;
-  return 'easy';
+  for (const e of ['race', 'interval', 'hill', 'tempo', 'hmp']) if (efforts.includes(e)) return e === 'race' ? 'interval' : e;
+  return 'easy'; // easy + strides is still an easy day
 }
 
 export const STATUS_LABEL = { done: 'Done', partial: 'Partial', moved: 'Moved', skipped: 'Skipped' };

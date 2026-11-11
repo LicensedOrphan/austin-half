@@ -1,7 +1,7 @@
 // In-memory app state, backed by IndexedDB. Views read from here; writes go through save*.
 
 import { db, settings } from './db.js';
-import { SCHEDULE, sessionFor, addDays, daysBetween, today, weekOf } from './plan.js';
+import { SCHEDULE, sessionFor, addDays, daysBetween, today, weekOf, RESTART } from './plan.js';
 import { trainingPaces, FIVE_K_METERS } from './paces.js';
 
 export const state = {
@@ -13,6 +13,7 @@ export const state = {
 
 export async function loadState() {
   await seed();
+  await seedRestart();
   const [logs, runs, tt, moves] = await Promise.all([db.all('logs'), db.all('runs'), settings.get('timeTrial'), settings.get('moves', {})]);
   state.logs = new Map(logs.map((l) => [l.date, l]));
   state.runs = runs.sort((a, b) => b.startedAt - a.startedAt);
@@ -29,6 +30,19 @@ async function seed() {
   await db.put('logs', { date: '2026-10-27', status: 'done', runId: run.id, stretched: true });
   await db.put('logs', { date: '2026-10-28', status: 'skipped', note: 'Skipped, not made up, to avoid stacking hard days.' });
   await settings.set('seeded', true);
+}
+
+// Nov 11 restart: nothing done Oct 29–Nov 10 except an ~11 mi walk around the Town Lake loop on Sat Nov 7.
+async function seedRestart() {
+  if (await settings.get('seedRestart')) return;
+  for (const s of SCHEDULE) {
+    if (s.date < '2026-10-29' || s.date >= RESTART.date) continue;
+    if (!['easy', 'quality', 'long', 'strength'].includes(s.type)) continue;
+    if (await db.get('logs', s.date)) continue;
+    await db.put('logs', { date: s.date, status: 'skipped', ...(s.date === '2026-11-07' ? { note: 'Walked the Town Lake loop instead (~11 mi).' } : {}) });
+  }
+  await db.put('runs', { id: 'seed-2026-11-07-walk', kind: 'walk', date: '2026-11-07', startedAt: new Date(2026, 10, 7, 9).getTime(), manual: true, miles: 11, seconds: null, title: 'Town Lake loop walk', points: [], splits: [] });
+  await settings.set('seedRestart', true);
 }
 
 export function paces() {
@@ -61,6 +75,9 @@ export async function deleteRun(id) {
 }
 
 export const runById = (id) => state.runs.find((r) => r.id === id);
+
+// Walks and rucks are logged but don't count toward running mileage or the spike check.
+export const isRunActivity = (r) => (r.kind || 'run') === 'run';
 
 // The session on a date, accounting for sessions moved within the week.
 export function sessionOn(date) {
@@ -118,7 +135,7 @@ export function movableTo(date) {
 
 export function longestRecent(date, days = 30) {
   let max = 0;
-  for (const r of state.runs) {
+  for (const r of state.runs.filter(isRunActivity)) {
     const ago = daysBetween(r.date, date);
     if (ago > 0 && ago <= days) max = Math.max(max, r.miles || 0);
   }
@@ -146,6 +163,6 @@ export function weekMiles(week) {
   return done;
 }
 
-export function runsOn(date) {
-  return state.runs.filter((r) => r.date === date);
+export function runsOn(date, { all = false } = {}) {
+  return state.runs.filter((r) => r.date === date && (all || isRunActivity(r)));
 }
