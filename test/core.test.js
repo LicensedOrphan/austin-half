@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { SCHEDULE, WEEK_TOTALS, sessionFor, flattenSteps, weekOf } from '../js/plan.js';
-import { trainingPaces, parseDuration, fmtPace, fmtDuration } from '../js/paces.js';
+import { trainingPaces, parseDuration, parseFiveK, fmtPace, fmtDuration } from '../js/paces.js';
 import { Track, METERS_PER_MILE } from '../js/track.js';
 import { Guide } from '../js/guide.js';
 
@@ -40,6 +40,21 @@ test('VDOT paces for a 25:00 5K are in the expected bands', () => {
   assert.ok(r.halfPrediction > 6600 && r.halfPrediction < 7200);
   assert.equal(fmtPace(599.6), '10:00');
   assert.equal(fmtDuration(3725), '1:02:05');
+});
+
+test('hand-typed 5K times are validated before they set paces', () => {
+  assert.equal(parseDuration('31:20'), 1880);
+  assert.equal(parseDuration('1:02:05'), 3725);
+  assert.equal(parseDuration(''), null);
+  assert.equal(parseDuration('25:75'), null);
+  assert.equal(parseDuration('-5:00'), null);
+  assert.equal(parseDuration('25:'), null);
+  assert.equal(parseFiveK('27:45'), 1665);
+  assert.equal(parseFiveK(' 25 '), 1500); // bare number is minutes
+  assert.equal(parseFiveK('25:75'), null);
+  assert.equal(parseFiveK('8:00'), null); // too fast to be real
+  assert.equal(parseFiveK('1:05:00'), null); // too slow for the 10–60 min window
+  assert.equal(parseFiveK('abc'), null);
 });
 
 // Walk due north at a steady pace; 1 deg latitude ~ 111.2 km.

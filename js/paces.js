@@ -92,8 +92,20 @@ export function fmtDuration(sec) {
   return h ? `${h}:${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}` : `${m}:${String(s).padStart(2, '0')}`;
 }
 
+// "31:20" or "1:02:05" to seconds. Null for blanks, negatives, or "25:75".
 export function parseDuration(text) {
-  const parts = text.trim().split(':').map(Number);
-  if (parts.some((n) => !isFinite(n))) return null;
+  const raw = String(text ?? '').trim();
+  if (!raw) return null;
+  const parts = raw.split(':').map((p) => (p.trim() === '' ? NaN : Number(p)));
+  if (parts.length > 3 || parts.some((n) => !isFinite(n) || n < 0)) return null;
+  if (parts.slice(1).some((n) => n >= 60)) return null;
   return parts.reduce((acc, n) => acc * 60 + n, 0);
+}
+
+// A 5K time typed by hand. A bare number means minutes ("25" is 25:00).
+// Null unless it lands between 10 and 60 minutes, so a typo can't reset every pace.
+export function parseFiveK(text) {
+  const raw = String(text ?? '').trim();
+  const sec = /^\d+(\.\d+)?$/.test(raw) ? Number(raw) * 60 : parseDuration(raw);
+  return sec != null && sec >= 600 && sec <= 3600 ? sec : null;
 }

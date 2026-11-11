@@ -1,7 +1,7 @@
 // Screens. Each view returns a template; app.js mounts it and calls bind() for events.
 
 import { SCHEDULE, WEEK_TOTALS, RACE, RULES, EFFORTS, RESTART, today, addDays, weekOf, daysBetween, sessionFor, parseDate } from './plan.js';
-import { fmtPace, fmtDuration, parseDuration, HALF_METERS } from './paces.js';
+import { fmtPace, fmtDuration, parseDuration, parseFiveK, HALF_METERS } from './paces.js';
 import { state, paces, saveLog, saveRun, saveTimeTrial, deleteRun, sessionOn, statusOf, movableTo, moveSession, undoMove, spikeWarning, weekMiles, runsOn, runById, isRun, isRunActivity } from './state.js';
 import { html, raw, render, band, stepRows, whyFor, effortLine, sessionFx, fmtDay, dowName, fmtMiles, tabs, sheet, daysToRace, STATUS_LABEL, phaseName, paceText, esc } from './ui.js';
 import { LEG_FEEL } from './content.js';
@@ -151,8 +151,8 @@ export function bindDay(root, date, rerender) {
   root.querySelectorAll('[data-mark]').forEach((b) => b.addEventListener('click', async () => { await saveLog({ date, status: b.dataset.mark || null }); rerender(); }));
   root.querySelectorAll('[data-manual]').forEach((b) => b.addEventListener('click', () => manualLog(date, rerender, b.dataset.kindDefault)));
   root.querySelector('#tt-save')?.addEventListener('click', async () => {
-    const sec = parseDuration(root.querySelector('#tt-time').value);
-    if (sec && sec > 600 && sec < 3600) { await saveTimeTrial(sec, date); rerender(); }
+    const sec = parseFiveK(root.querySelector('#tt-time').value);
+    if (sec) { await saveTimeTrial(sec, date); rerender(); }
   });
 }
 
@@ -219,8 +219,9 @@ function manualLog(date, rerender, initialKind = 'run') {
       const seconds = timeText ? parseDuration(timeText) : null;
       if (!(miles > 0)) { err.textContent = 'Enter the distance in miles.'; err.hidden = false; return; }
       if (kind === 'run' && !(seconds > 60)) { err.textContent = 'Enter a time like 31:20.'; err.hidden = false; return; }
-      const ttText = kind === 'run' ? el.querySelector('#ml-tt')?.value : null;
-      const tt = ttText ? parseDuration(ttText) : null;
+      const ttText = kind === 'run' ? el.querySelector('#ml-tt')?.value.trim() : null;
+      const tt = ttText ? parseFiveK(ttText) : null;
+      if (ttText && !tt) { err.textContent = 'Enter the 5K time like 27:45.'; err.hidden = false; return; }
       const run = { id: `m-${Date.now()}`, kind, date, startedAt: parseDate(date).getTime() + 7 * 3600e3, manual: true, miles, seconds, title: kind === 'run' ? s?.title : KIND[kind], points: [], splits: [], timeTrialSeconds: tt || undefined };
       await saveRun(run);
       if (tt) await saveTimeTrial(tt, date);
@@ -428,8 +429,8 @@ export function settingsView(persisted) {
 export function bindSettings(root, rerender) {
   const msg = root.querySelector('#msg');
   root.querySelector('#tt-save').addEventListener('click', async () => {
-    const sec = parseDuration(root.querySelector('#tt').value);
-    if (!sec || sec < 600 || sec > 3600) { msg.textContent = 'Enter a 5K time like 27:45.'; return; }
+    const sec = parseFiveK(root.querySelector('#tt').value);
+    if (!sec) { msg.textContent = 'Enter a 5K time like 27:45.'; return; }
     await saveTimeTrial(sec);
     rerender();
   });
