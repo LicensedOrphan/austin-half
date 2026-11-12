@@ -1,5 +1,5 @@
 // Offline support: the app shell is cached on install; map library and tiles cache as used.
-const VERSION = 'v5';
+const VERSION = 'v6';
 const SHELL = `shell-${VERSION}`;
 const RUNTIME = 'runtime';
 const FILES = [

@@ -140,17 +140,20 @@ function mountActive(root) {
   const lock = (on) => { $('veil').hidden = !on; a.locked = on; };
   let holdT = null;
   const fill = $('unlock-fill');
-  $('unlock').addEventListener('pointerdown', () => {
+  const btn = $('unlock');
+  const cancel = () => { clearInterval(holdT); holdT = null; fill.style.width = 0; };
+  btn.addEventListener('pointerdown', (e) => {
+    cancel();
+    try { btn.setPointerCapture(e.pointerId); } catch {} // a small finger slide shouldn't reset the hold
     const t0 = Date.now();
     holdT = setInterval(() => {
       const f = Math.min(1, (Date.now() - t0) / 900);
       fill.style.width = f * 100 + '%';
-      if (f >= 1) { clearInterval(holdT); fill.style.width = 0; lock(false); }
+      if (f >= 1) { cancel(); lock(false); }
     }, 30);
   });
-  const cancel = () => { clearInterval(holdT); fill.style.width = 0; };
-  $('unlock').addEventListener('pointerup', cancel);
-  $('unlock').addEventListener('pointerleave', cancel);
+  for (const ev of ['pointerup', 'pointercancel', 'lostpointercapture']) btn.addEventListener(ev, cancel);
+  btn.addEventListener('contextmenu', (e) => e.preventDefault());
   if (a.locked) lock(true);
 
   const now = () => ({ sec: a.recorder.track.elapsed(Date.now()) / 1000, mi: a.recorder.track.miles() });
